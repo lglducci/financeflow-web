@@ -1,0 +1,479 @@
+import { useState, useEffect } from "react";
+import { buildWebhookUrl } from "../config/globals";
+import { useNavigate,useLocation } from "react-router-dom";
+import { hojeLocal, hojeMaisDias } from "../utils/dataLocal";
+import ExcelExport from "../utils/ExcelExport";
+
+
+ 
+export default function RelatoriosDiario() {
+  const hoje = new Date().toISOString().slice(0, 10);
+    
+  const location = useLocation();
+  const [empresaId, setEmpresaId] = useState(null);
+  const [dataIni, setDataIni] = useState( hojeLocal());
+  const [dataFim, setDataFim] = useState(hojeLocal());
+  const [dados, setDados] = useState([]);
+  const [loading, setLoading] = useState(false);
+    const [filtro, setFiltro] = useState("");
+
+  const navigate = useNavigate();
+    const btnPadrao =
+  "w-60 h-12 flex items-center justify-center text-white font-semibold rounded-lg text-base";
+
+
+ const [importacoes, setImportacoes] = useState([]);
+const [importacaoSelecionada, setImportacaoSelecionada] = useState("");
+const [importacaoFiltroAplicado, setImportacaoFiltroAplicado] = useState("");
+
+  useEffect(() => {
+    const id = localStorage.getItem("empresa_id") || localStorage.getItem("id_empresa");
+    if (id) setEmpresaId(Number(id));
+  }, []);
+
+  const fmt = new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  {/*const fmtData = (d) =>
+    d ? new Date(d).toLocaleDateString("pt-BR") : "";*/}
+
+ 
+function formatarDataBR(data) {
+  if (!data) return "";
+  const d = new Date(data);
+  const dia = String(d.getUTCDate()).padStart(2, "0");
+  const mes = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const ano = d.getUTCFullYear();
+  return `${dia}-${mes}-${ano}`;
+}
+
+
+ async function consultar(importacaoIdParam = null) {
+  if (!empresaId) return alert("Empresa não carregada");
+
+  const importacaoIdFinal =
+    importacaoIdParam !== null
+      ? Number(importacaoIdParam) || 0
+      : Number(importacaoSelecionada) || 0;
+
+  setLoading(true);
+
+    try {
+      const r = await fetch(buildWebhookUrl("movimento_contabil"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          empresa_id: empresaId,
+          data_ini: dataIni,
+          data_fim: dataFim,
+          todos:'T',
+          importacao_id: importacaoIdParam  || 0
+        }),
+      });
+
+      const json = await r.json();
+      setDados(Array.isArray(json) ? json : []);
+    } catch {
+      alert("Erro ao carregar diário contábil");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+  if (!empresaId) return;
+
+  consultar();
+
+}, [empresaId, dataIni, dataFim]);
+
+ const filtrados = dados.filter((item) => {
+  const f = filtro.toLowerCase();
+
+  return (
+    !filtro ||
+    (item.conta_credito || "").toLowerCase().includes(f) ||
+    (item.conta_debito || "").toLowerCase().includes(f) ||
+    (item.historico || "").toLowerCase().includes(f) ||
+    (item.modelo_codigo || "").toLowerCase().includes(f) ||
+    String(item.lote_id || "").toLowerCase().includes(f) ||
+    String(item.id || "").toLowerCase().includes(f)
+  );
+});
+
+
+
+
+ async function Estornar(lote_id, importacao_id) {
+  const loteId = Number(lote_id) || 0;
+  const importacaoId = Number(importacao_id) || 0;
+
+  let mensagem = "";
+
+  if (loteId === 0 && importacaoId > 0) {
+    mensagem = `ATENÇÃO\n\nVocê está excluindo a IMPORTAÇÃO número ${importacaoId}.\n\nIsso apagará todos os lançamentos vinculados a essa importação.\n\nDeseja continuar?`;
+  } else if (loteId > 0 && importacaoId === 0) {
+    mensagem = `ATENÇÃO\n\nVocê está excluindo o LOTE número ${loteId}.\n\nIsso apagará somente os lançamentos desse lote.\n\nDeseja continuar?`;
+  } else {
+    alert("Parâmetros inválidos para exclusão.");
+    return;
+  }
+
+  if (!confirm(mensagem)) return;
+
+  try {
+    const url = buildWebhookUrl("excluilanctolote");
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        empresa_id: empresaId,
+        lote_id,
+        importacao_id
+      }),
+    });
+
+    const texto = await resp.text();
+
+    console.log("🔎 Resposta bruta:", texto);
+
+    let arr;
+    try {
+      arr = JSON.parse(texto);
+    } catch (err) {
+      console.error("❌ Erro ao fazer parse do JSON:", err);
+      alert("Servidor retornou algo inválido.");
+      return;
+    }
+
+    console.log("🔎 JSON parseado:", arr);
+
+    const item = arr?.[0];
+
+    console.log("🔎 Item[0]:", item);
+
+    if (!item?.ok) {
+      alert(item?.message || "Erro no servidor");
+      return;
+    }
+
+    alert(importacaoId > 0 ? "Importação excluída com sucesso!" : "Lote excluído com sucesso!");
+
+    if (importacaoId > 0) {
+  setImportacaoSelecionada("");
+  setImportacaoFiltroAplicado("");
+  await carregarImportacoes();
+}
+
+ 
+      await consultar(importacaoSelecionada || 0);
+
+  } catch (e) {
+    console.error("ERRO Estornar:", e);
+    alert("Erro ao estornar.");
+  }
+}
+
+ function exportarExcel() {
+
+  const dadosExcel = filtrados.map(l => ({
+    Lancamento: l.id,
+    Data: formatarDataBR(l.data),
+    Historico: l.historico,
+    Debito: l.conta_debito,
+    Credito: l.conta_credito,
+    Valor: l.credito,
+    Lote: l.lote_id
+  }));
+
+  ExcelExport.exportar(dadosExcel, "lancamentos_contabeis.xlsx");
+}
+
+const carregarImportacoes = async () => {
+  try {
+    const url = buildWebhookUrl("lote_importacao");
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        empresa_id: empresaId
+      })
+    });
+
+    const data = await resp.json();
+
+    const lista = Array.isArray(data) ? data : (data?.dados || []);
+    setImportacoes(lista);
+  } catch (err) {
+    console.error("Erro ao carregar importações:", err);
+    setImportacoes([]);
+  }
+};
+
+useEffect(() => {
+  carregarImportacoes();
+}, []);
+
+ const aplicarFiltro = async () => {
+  await consultar(importacaoSelecionada || 0);
+};
+
+ const limparFiltro = async () => {
+  setImportacaoSelecionada("");
+  await consultar(0);
+};
+
+
+ useEffect(() => {
+  const id = localStorage.getItem("empresa_id") || localStorage.getItem("id_empresa");
+  if (id) setEmpresaId(Number(id));
+}, []);
+
+useEffect(() => {
+  if (empresaId) {
+    carregarImportacoes();
+  }
+}, [empresaId]);
+ 
+
+return (
+  <div className="p-4 bg-gray-100 rounded-xl">
+
+    {/* ===== FILTROS ===== */}
+    <div className="bg-white rounded-xl shadow border-l-4 border-blue-600 p-4 mb-6">
+      <h2 className="text-2xl font-bold text-blue-600 mb-4">
+        📘 Lançamentos Contábeis (Detalhes) 
+      </h2>
+
+       <div className="flex flex-wrap gap-4 items-end mt-6">
+
+        <div className="flex flex-col">
+          <label className="font-bold text-blue-800 mb-1">Data inicial</label>
+          <input
+            type="date"
+            value={dataIni}
+            onChange={(e) => setDataIni(e.target.value)}
+            className="border rounded-lg px-3 py-2 border-yellow-500"
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <label className="font-bold text-blue-800 mb-1">Data final</label>
+          <input
+            type="date"
+            value={dataFim}
+            onChange={(e) => setDataFim(e.target.value)}
+            className="border rounded-lg px-3 py-2 border-yellow-500"
+          />
+        </div>
+
+        <div className="flex flex-col flex-1 min-w-[260px]">
+          <label className="font-bold text-blue-800 mb-1">Conta / Histórico/ Lancto id/ Lote </label>
+          <input
+            type="text"
+            placeholder="Conta, histórico ou modelo"
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            className="border rounded-lg px-3 py-2 border-yellow-500"
+          />
+        </div>
+
+        <button
+          onClick={() => consultar()}
+             className="btn-pill btn-blue"
+                    >
+          Consultar
+        </button>
+
+        <button
+          onClick={() => navigate("/lancamentocontabilrapido")}
+           
+               className="btn-pill btn-emerald"
+                    >
+          ⚡ Novo Lançamento
+        </button>
+
+
+            <button 
+            onClick={() => navigate("/livro-caixa")}
+            className="btn-pill btn-yellow"
+                    >
+          ⚡ Lançar Livro Caixa
+        </button>
+
+        <button
+          onClick={() => window.print()}
+         
+            className="btn-pill btn-gray"
+                    >
+           
+          🖨️ Imprimir
+        </button>
+
+        <button
+            onClick={exportarExcel}
+               
+            className="btn-pill btn-green"
+                    >
+          Exportar Excel
+          </button>
+
+      </div>
+
+      <div className="flex flex-wrap gap-4 items-end mt-6">
+     <div className="flex items-center gap-3 mb-4">
+  <label className="font-semibold text-sm text-slate-700">
+    Filtrar importação:
+  </label>
+
+  <select
+    value={importacaoSelecionada}
+    onChange={(e) => setImportacaoSelecionada(e.target.value)}
+    className="border rounded px-3 py-2 text-sm"
+  >
+    <option value="">Todas</option>
+
+    {importacoes.map((imp, i) => (
+      <option
+        key={i}
+        value={imp.importacao_id}
+      >
+        {imp.importacao_id}
+      </option>
+    ))}
+  </select>
+
+  <button
+    onClick={aplicarFiltro}
+       className="btn-pill btn-gray"
+                    >
+    Filtrar
+  </button>
+
+  <button
+    onClick={limparFiltro}
+
+    className="btn-pill btn-blue"
+            >
+    Limpar
+  </button>
+
+   <button
+    onClick={() => {
+    if (!importacaoSelecionada) {
+      alert("Selecione uma importação.");
+      return;
+    }
+    Estornar(0, importacaoSelecionada);
+  }}
+    
+    className="btn-pill btn-red"
+            >
+  Excluir Importação
+</button>
+
+</div>
+</div>
+
+    </div>
+
+    {/* ===== TABELA ===== */}
+     <div id="print-area" className="bg-white rounded-xl shadow p-4 border border-gray-400">
+      
+      <table className="w-full text-sm border-collapse">
+        <thead className="bg-gray-100 text-blue-800">
+          <tr>
+            <th className="p-2 text-left">Lancto id</th>
+            <th className="p-2 text-left">Data</th>
+            <th className="p-2 text-left">Histórico</th>
+            <th className="p-2 text-left">Débito</th>
+            <th className="p-2 text-left">Crédito</th>
+            <th className="p-2 text-right pr-6">Valor</th>
+           <th className="p-2 text-center pl-6">Lote</th>
+            <th className="p-2 text-center text-blue-700">Importação</th>
+           <th className="p-2">
+          
+             
+            <span  className="text-blue-700 font-bold">Ação</span>
+           
+        </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {filtrados.map((l, i) => (
+            <tr
+              key={i}
+              className={i % 2 === 0 ? "bg-gray-50" : "bg-gray-100"}
+            >
+              <td className="p-2 font-bold">{l.id}</td>
+              <td className="p-2 font-bold">{formatarDataBR(l.data)}</td>
+              <td className="p-2 font-bold max-w-[400px] truncate">
+                  {l.historico}
+                </td>
+              <td className="p-2 font-bold">{l.conta_debito}</td>
+              <td className="p-2 font-bold">{l.conta_credito}</td>
+              <td className="p-2 text-right font-bold pr-6">
+                  {fmt.format(l.credito)}
+                </td>
+                <td className="p-2 text-center font-bold pl-6">
+                  {l.lote_id}
+                </td>
+
+              <td   className="p-2 font-bold text-center font-size: 16px text-blue-900">{l.importacao_id}</td>
+             
+              <div className="flex gap-3 justify-center">
+  
+                  <button
+                    onClick={() => Estornar(l.lote_id,0)}
+                    className="text-red-700 underline font-bold  text-left ml-4"
+                  >
+                     Excluir
+                  </button> 
+
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate("/lanctoctbrapeditar", {
+                        state: { id: l.lote_id }
+                      });
+                    }}
+                    className="text-blue-700 underline font-bold ml-4"
+                  >
+                    Editar
+                  </button>
+
+                </div>
+              
+            </tr>
+          ))}
+
+          {!loading && dados.length === 0 && (
+            <tr>
+              <td colSpan={8} className="py-6 text-center text-gray-500">
+                Nenhum lançamento encontrado.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {loading && (
+        <div className="p-6 text-center text-blue-600 font-semibold">
+          Carregando...
+        </div>
+      )}
+    </div>
+
+  </div>
+);
+
+   
+  
+}

@@ -1,4 +1,4 @@
- import AppMenuMobile from "./pages/AppMenuMobile";
+  import AppMenuMobile from "./pages/AppMenuMobile";
 
 export default function App() {
   return <AppMenuMobile />;

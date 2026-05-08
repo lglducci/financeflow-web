@@ -1,111 +1,232 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+ @tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
+/* Estilos globais */
 body {
-  margin: 0;
+  @apply bg-[#f5f5f5];
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+
+/* Classe padrão para inputs premium */
+.input-premium {
+  @apply  
+    px-3
+    py-1
+    text-base 
+    rounded-lg
+    border-2
+    border-gray-400
+    bg-black
+    text-black
+    shadow-sm
+    focus:outline-none
+    focus:ring-1
+    focus:ring-yellow-500
+    focus:border-gray-600;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+
+.input-premium {
+  @apply w-full rounded-lg border-2 border-gray-300 bg-white text-black shadow-sm 
+         focus:outline-none focus:ring-1 focus:ring-yellow-300 focus:border-yellow-600;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
+/* ➜ classe PARA TAMANHO (você controla aqui) */
+.input-size {
+  height: 36px;      /* altura do campo */
+  font-size: 16px;   /* tamanho da letra */
+  padding: 6px 8px; /* padding vertical e horizontal */
+  
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+
+.input-campo {
+  @apply 
+    w-full          /* ocupa toda a largura */
+    h-10            /* 🔥 altura IGUAL para todos (40px) */
+    px-3            /* padding interno horizontal */
+    rounded-lg      
+    border 
+    border-gray-300
+    text-black
+    bg-gray-300
+    focus:outline-none
+    focus:ring-2
+    focus:ring-blue-300
+    focus:border-blue-500;
 }
 
-code {
+
+.input-base {
+  @apply 
+    p-2
+    rounded-lg
+    border
+    border-gray-300
+    text-black
+    bg-white
+    focus:outline-none
+    focus:ring-2
+    focus:ring-blue-300
+    focus:border-blue-500;
+}
+
+
+.tabela-mapeamento {
+  font-size: 14px;       /* tamanho padrão */
+  font-weight: 700;      /* meio bold */
+}
+
+.tabela-mapeamento th {
   font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  font-weight: bold;
+  background: #1b317f;
+  color: white;
+  padding: 6px;
+   text-align: left;
+}
+
+.tabela-mapeamento td {
+  padding: 10px;
+    text-align: left;
+
+}
+
+.tabela-mapeamento tr:nth-child(even) {
+  background: #ffffff;
+  padding: 10px;
+}
+
+.tabela-mapeamento tr:nth-child(odd) {
+  background: #d5defaff;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* remove botões */
+  button {
+    display: none !important;
+  }
+}
+
+
+/* Label padrão */
+.label {
+  font-weight: bold;
+  color: #1e40af;
+}
+
+/* Campo obrigatório */
+.label-required::after {
+  content: " *";
+  color: #dc2626; /* vermelho */
+  font-weight: bold;
+}
+
+
+.input-desativado {
+  background-color: #adb7cd;      /* cinza claro */
+  color: #0b285b;                 /* texto cinza */
+  border-color: #234c8a;
+  cursor: not-allowed;
+  
+}
+
+
+.btn-pill {
+  @apply
+    px-5 py-2.5
+    rounded-full
+    font-bold text-sm tracking-wide
+    text-white
+    border border-black/70
+    shadow-[0_5px_0_rgba(0,0,0,0.45),0_8px_18px_rgba(0,0,0,0.25)]
+    hover:brightness-110 hover:scale-105
+    active:scale-95 active:translate-y-[2px]
+    transition-all duration-200
+    inline-flex items-center justify-center gap-2
+    select-none;
+}
+
+ 
+ .btn-blue {
+  @apply bg-gradient-to-b from-sky-300 via-blue-600 to-blue-950;
+}
+
+.btn-green {
+  @apply bg-gradient-to-b from-green-300 via-green-600 to-green-950;
+}
+
+.btn-red {
+  @apply bg-gradient-to-b from-rose-300 via-red-600 to-red-950;
+}
+
+.btn-yellow {
+  @apply text-black bg-gradient-to-b from-yellow-100 via-amber-400 to-yellow-700;
+}
+
+.btn-purple {
+  @apply bg-gradient-to-b from-violet-300 via-purple-600 to-purple-950;
+}
+
+.btn-gray {
+  @apply bg-gradient-to-b from-slate-300 via-slate-600 to-slate-900;
+}
+
+.btn-dark-blue {
+  @apply bg-gradient-to-b from-blue-500 via-blue-800 to-slate-950;
+}
+
+.btn-black {
+  @apply bg-gradient-to-b from-zinc-400 via-zinc-800 to-black;
+}
+
+
+.btn-dark-blue {
+  @apply bg-gradient-to-b from-blue-800 via-blue-900 to-blue-900;
+}
+
+
+
+
+.btn-emerald {
+  @apply bg-gradient-to-b from-emerald-500 via-emerald-600 to-emerald-800;
+}
+
+
+
+.btn-light-gray {
+  @apply bg-gradient-to-b from-gray-100 via-gray-300 to-gray-500;
+}
+
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
 }
