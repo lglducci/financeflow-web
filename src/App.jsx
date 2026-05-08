@@ -1,10 +1,5 @@
- import { BrowserRouter } from "react-router-dom";
-import AppMenuMobile from "../../src/pages/AppMenuMobile";
+ import AppMenuMobile from "./pages/AppMenuMobile";
 
 export default function App() {
-  return (
-    <BrowserRouter>
-      <AppMenuMobile />
-    </BrowserRouter>
-  );
+  return <AppMenuMobile />;
 }
