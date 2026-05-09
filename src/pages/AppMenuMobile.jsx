@@ -1,4 +1,4 @@
-  import { useEffect, useState } from "react";
+   import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { buildWebhookUrl } from "../config/globals";
  
@@ -249,7 +249,7 @@ useEffect(() => {
   const token = localStorage.getItem("ff_token");
 
   if (!token) {
-    window.location.href = "`https://contabil-flow.lglducci.com.br/app/login";
+    window.location.href = "https://contabil-flow.lglducci.com.br/app/login";
   }
 }, []);
  
