@@ -4,7 +4,7 @@ import { buildWebhookUrl } from "../config/globals";
  
 import { Html5QrcodeScanner } from "html5-qrcode";
  
-
+  
 
 export default function Home() {
  
