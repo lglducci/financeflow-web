@@ -17,8 +17,8 @@ export default function Home() {
 
 
    function ir(modo) {
- ////// window.location.href = `https://contabil-flow.lglducci.com.br/app/lancamento?modo=${modo}`;
-   window.location.href = `http://192.168.1.103:5173/app/lancamento?modo=${modo}`; 
+  window.location.href = `https://contabil-flow.lglducci.com.br/app/lancamento?modo=${modo}`;
+//   window.location.href = `http://192.168.1.103:5173/app/lancamento?modo=${modo}`; 
 }
 
 const empresa_id =
@@ -228,7 +228,8 @@ useEffect(() => {
       if (!dados) return;
 
       const url =
-        `http://192.168.1.103:5173/app/lancamento` +
+       // `http://192.168.1.103:5173/app/lancamento` +
+         `https://contabil-flow.lglducci.com.br/app/lancamento` +
         `?modo=${dados.modo}` +
         `&forma=${dados.forma}` +
         `&valor=${dados.valor}` +
