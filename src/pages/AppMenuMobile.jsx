@@ -4,7 +4,7 @@ import { buildWebhookUrl } from "../config/globals";
  
 import { Html5QrcodeScanner } from "html5-qrcode";
  
-  
+
 
 export default function Home() {
  
@@ -249,7 +249,7 @@ useEffect(() => {
   const token = localStorage.getItem("ff_token");
 
   if (!token) {
-    window.location.href = "http://192.168.1.103:5173/app/login";
+    window.location.href = "`https://contabil-flow.lglducci.com.br/app/login";
   }
 }, []);
  
@@ -334,8 +334,8 @@ useEffect(() => {
                     localStorage.clear();
                     sessionStorage.clear();
                     // navigate("/app/login", { replace: true });
-                    //  window.location.href = "https://contabil-flow.lglducci.com.br/app/login";
-                      window.location.href = "http://192.168.1.103:5173/app/login";
+                      window.location.href = "https://contabil-flow.lglducci.com.br/app/login";
+                     // window.location.href = "http://192.168.1.103:5173/app/login";
                   }}
             style={{
               width: 42,
