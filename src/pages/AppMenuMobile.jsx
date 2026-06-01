@@ -1,10 +1,14 @@
-   import { useEffect, useState } from "react";
+  import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { buildWebhookUrl } from "../config/globals";
+ import { buildWebhookUrl } from "../config/globals";
+import { hojeLocal } from "../utils/dataLocal";
  
-import { Html5QrcodeScanner } from "html5-qrcode";
+//import { Html5QrcodeScanner } from "html5-qrcode";
  
-
+ import {
+  Html5QrcodeScanner,
+  Html5QrcodeSupportedFormats,
+} from "html5-qrcode";
 
 export default function Home() {
  
@@ -13,12 +17,12 @@ export default function Home() {
  const navigate = useNavigate();
 
  const [abrirQR, setAbrirQR] = useState(false);
+ const [tipoLeitor, setTipoLeitor] = useState(null);
+
+const [alertaContabil, setAlertaContabil] = useState(null);
  
-
-
-   function ir(modo) {
-  window.location.href = `https://contabil-flow.lglducci.com.br/app/lancamento?modo=${modo}`;
-//   window.location.href = `http://192.168.1.103:5173/app/lancamento?modo=${modo}`; 
+function ir(modo) {
+  navigate(`/app/lancamento?modo=${modo}`);
 }
 
 const empresa_id =
@@ -27,6 +31,8 @@ const empresa_id =
 
 const [dash, setDash] = useState(null);
 const [loadingDash, setLoadingDash] = useState(false);
+const [qtdVencidos, setQtdVencidos] = useState(0);
+
 
  const card = {
   border: "1px solid rgba(255,255,255,0.45)",
@@ -41,15 +47,41 @@ const [loadingDash, setLoadingDash] = useState(false);
 };
 
 
+function abrirLeitor(tipo) {
+  setTipoLeitor(tipo);
+  setAbrirQR(true);
+}
+
+async function carregarQtdVencidos() {
+  try {
+    const url = buildWebhookUrl("vencidos", {
+      id_empresa: empresa_id,
+    });
+
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    const item = Array.isArray(data) ? data[0] : data;
+    setQtdVencidos(Number(item?.qtd_vencidos || 0));
+  } catch {
+    setQtdVencidos(0);
+  }
+}
+
+useEffect(() => {
+  if (empresa_id) carregarQtdVencidos();
+}, [empresa_id]);
+
+
 function BotaoMenu({ icone, titulo, subtitulo, onClick }) {
   return (
     <button
       onClick={onClick}
       style={{
         border: "1px solid rgba(148,163,184,0.25)",
-        borderRadius: 24,
-        padding: 12,
-        minHeight: 86,
+        borderRadius: 14,
+        padding: 10,
+        minHeight: 36,
         background: "linear-gradient(135deg,#e2e8f0,#cbd5e1)",
         boxShadow: "0 8px 24px rgba(15,23,42,0.10)",
         textAlign: "left",
@@ -142,7 +174,7 @@ function MiniDashboard() {
         </div>
 
         <button
-          onClick={() => navigate("/dashboardfinanceiro")}
+          onClick={() => navigate("/app/dashboard")}
           style={{
             border: "1px solid rgba(255,255,255,0.35)",
             borderRadius: 999,
@@ -174,26 +206,53 @@ function MiniDashboard() {
       </div>
     </div>
   );
+} 
+
+
+ function tratarCodigoLido(decodedText) {
+  const limpo = String(decodedText || "").trim();
+  const numeros = limpo.replace(/\D/g, "");
+
+  // PIX
+  if (limpo.startsWith("000201") || limpo.includes("BR.GOV.BCB.PIX")) {
+    return parsePix(limpo);
+  }
+
+  // NF-e / DANFE
+  if (numeros.length === 44 && numeros.startsWith("35")) {
+    return {
+      modo: "saida",
+      forma: "avista",
+      valor: "",
+      vencimento: hojeLocal(),
+      descricao: "Nota Fiscal Eletrônica",
+      codigo: numeros,
+    };
+  }
+
+  // BOLETO / ARRECADAÇÃO
+  if (numeros.length >= 44) {
+    return parseBoleto(numeros);
+  }
+
+  return null;
 }
- 
+
 function parsePix(payload) {
   try {
+    let i = 0;
     let valor = "";
     let descricao = "Pagamento PIX";
 
-    const matchValor = payload.match(/54(\d{2})/);
-    if (matchValor) {
-      const tamanho = Number(matchValor[1]);
-      const inicio = matchValor.index + 4;
-      valor = payload.substring(inicio, inicio + tamanho);
-    }
+    while (i < payload.length) {
+      const tag = payload.substring(i, i + 2);
+      const len = Number(payload.substring(i + 2, i + 4));
+      const value = payload.substring(i + 4, i + 4 + len);
 
-    const matchNome = payload.match(/59(\d{2})/);
-    if (matchNome) {
-      const tamanho = Number(matchNome[1]);
-      const inicio = matchNome.index + 4;
-      const nome = payload.substring(inicio, inicio + tamanho);
-      descricao = `PIX ${nome.trim()}`;
+      if (tag === "54") valor = value;
+      if (tag === "59") descricao = `PIX ${value.trim()}`;
+
+      i = i + 4 + len;
     }
 
     return {
@@ -203,20 +262,45 @@ function parsePix(payload) {
       descricao,
     };
   } catch {
-    return null;
+    return {
+      modo: "saida",
+      forma: "pix",
+      valor: "",
+      descricao: "Pagamento PIX",
+    };
   }
 }
+
+
 useEffect(() => {
   if (!abrirQR) return;
 
-  const scanner = new Html5QrcodeScanner(
-    "reader",
-    {
-      fps: 10,
-      qrbox: 250,
-    },
-    false
-  );
+ const configScanner =
+  tipoLeitor === "barra"
+    ? {
+        fps: 15,
+        qrbox: { width: 340, height: 110 },
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.ITF_14,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+        ],
+      }
+    : {
+        fps: 10,
+        qrbox: 250,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+        ],
+      };
+
+
+ const scanner = new Html5QrcodeScanner(
+  "reader",
+  configScanner,
+  false
+);
 
   scanner.render(
     (decodedText) => {
@@ -224,18 +308,19 @@ useEffect(() => {
 
       setAbrirQR(false);
 
-      const dados = parsePix(decodedText);
+      alert(decodedText);
+console.log("CODIGO LIDO:", decodedText);
+
+     const dados = tratarCodigoLido(decodedText);
       if (!dados) return;
-
-      const url =
-       // `http://192.168.1.103:5173/app/lancamento` +
-         `https://contabil-flow.lglducci.com.br/app/lancamento` +
-        `?modo=${dados.modo}` +
-        `&forma=${dados.forma}` +
-        `&valor=${dados.valor}` +
-        `&descricao=${encodeURIComponent(dados.descricao)}`;
-
-      window.location.href = url;
+     navigate(
+  `/app/lancamento?modo=${dados.modo}` +
+  `&forma=${dados.forma}` +
+  `&valor=${dados.valor || ""}` +
+  `&vencimento=${dados.vencimento || ""}` +
+  `&descricao=${encodeURIComponent(dados.descricao || "")}` +
+  `&codigo=${encodeURIComponent(dados.codigo || decodedText)}`
+);
     },
     () => {}
   );
@@ -243,16 +328,141 @@ useEffect(() => {
   return () => {
     scanner.clear().catch(() => {});
   };
-}, [abrirQR]);
+ }, [abrirQR, tipoLeitor]);
+ 
+ async function carregarAlertaContabil() {
+  try {
+    const empresa_id =
+      localStorage.getItem("empresa_id") ||
+      localStorage.getItem("id_empresa") ||
+      "0";
+
+    const resp = await fetch(
+      buildWebhookUrl("ultimo_processamento", { empresa_id })
+    );
+
+    const data = await resp.json();
+    const item = Array.isArray(data) ? data[0] : data;
+
+    const hoje = hojeLocal();
+
+     
+
+    const ultimoProcessado = item?.ultimo_dia_processado
+      ? item.ultimo_dia_processado.slice(0, 10)
+      : null;
+
+
+      const temAlerta =
+  item?.data_reprocessar_de ||
+  (ultimoProcessado && ultimoProcessado < hoje);
+
+      if (temAlerta) {
+  setAlertaContabil(item);
+} else {
+  setAlertaContabil(null);
+} 
+  } catch (e) {
+    console.log("Erro alerta contábil mobile:", e);
+    setAlertaContabil(null);
+  }
+}
 
 useEffect(() => {
-  const token = localStorage.getItem("ff_token");
+  if (empresa_id) carregarAlertaContabil();
+}, [empresa_id]);
 
-  if (!token) {
-    window.location.href = "https://contabil-flow.lglducci.com.br/app/login";
+useEffect(() => {
+  function atualizar() {
+    carregarAlertaContabil();
   }
+
+  window.addEventListener("contabil-atualizado", atualizar);
+
+  return () => {
+    window.removeEventListener("contabil-atualizado", atualizar);
+  };
 }, []);
- 
+
+ function parseBoleto(codigo) {
+  try {
+    const numeros = String(codigo || "").replace(/\D/g, "");
+
+    if (numeros.length < 44) return null;
+
+    // ==============================
+    // ARRECADAÇÃO / CONTA DE CONSUMO
+    // Ex: Claro, água, luz, telefone
+    // ==============================
+    if (numeros.startsWith("8")) {
+      // Para o código da Claro lido:
+      // 848900000000459401622026021917006956002511988
+
+      const valorCentavos = Number(numeros.substring(11, 15));
+
+      const valor =
+        valorCentavos > 0
+          ? (valorCentavos / 100).toFixed(2)
+          : "";
+
+      const venc = numeros.substring(21, 27);
+
+      let vencimento = hojeLocal();
+
+      if (/^\d{6}$/.test(venc)) {
+       const ano = "20" + venc.substring(0, 2);
+        const mes = venc.substring(2, 4);
+        const dia = venc.substring(4, 6);
+
+        vencimento = `${ano}-${mes}-${dia}`;
+
+        vencimento = `${ano}-${mes}-${dia}`;
+      }
+
+      return {
+        modo: "pagar",
+        forma: "aprazo",
+        valor,
+        vencimento,
+        descricao: "Conta de consumo",
+        codigo: numeros,
+      };
+    }
+
+    // ==============================
+    // BOLETO BANCÁRIO COMUM
+    // ==============================
+    const valorStr = numeros.substring(9, 19);
+    const valor = (Number(valorStr) / 100).toFixed(2);
+
+    const fator = Number(numeros.substring(5, 9));
+
+    let vencimento = hojeLocal();
+
+    if (fator > 0) {
+      const base = new Date(1997, 9, 7);
+      base.setDate(base.getDate() + fator);
+
+      vencimento =
+        base.getFullYear() +
+        "-" +
+        String(base.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(base.getDate()).padStart(2, "0");
+    }
+
+    return {
+      modo: "pagar",
+      forma: "aprazo",
+      valor,
+      vencimento,
+      descricao: "Boleto bancário",
+      codigo: numeros,
+    };
+  } catch {
+    return null;
+  }
+}
 
   return (
 
@@ -284,29 +494,32 @@ useEffect(() => {
           width: "100%",
            overflow: "hidden",
         }}
-      >
+      > 
+      <style>
+        {`
+          @keyframes sinoMexendo {
+            0% { transform: rotate(0deg); }
+            20% { transform: rotate(-18deg); }
+            40% { transform: rotate(18deg); }
+            60% { transform: rotate(-12deg); }
+            80% { transform: rotate(12deg); }
+            100% { transform: rotate(0deg); }
+          }
+        `}
+      </style>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 24 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#0f172a" }}>
-              💼 FinanceFlow Mobile  
+              📊 FinanceFlow Mobile  
             </h1>
               
+              <button onClick={() => abrirLeitor("qrcode")}>
+                      📷 Ler QR Code / Pix
+                    </button>
 
-              <button
-            onClick={() => setAbrirQR(true)}
-            style={{
-              marginTop: 12,
-              border: 0,
-              borderRadius: 999,
-              padding: "10px 16px",
-              background: "linear-gradient(135deg,#16a34a,#15803d)",
-              color: "white",
-              fontWeight: 900,
-              cursor: "pointer",
-            }}
-          >
-            📷 Ler QR Code
-          </button>
+                    <button onClick={() => abrirLeitor("barra")}>
+                      ▦ Ler Código de Barras
+                    </button>
             <div
               style={{
                 marginTop: 10,
@@ -333,9 +546,7 @@ useEffect(() => {
             onClick={() => {
                     localStorage.clear();
                     sessionStorage.clear();
-                    // navigate("/app/login", { replace: true });
-                      window.location.href = "https://contabil-flow.lglducci.com.br/app/login";
-                     // window.location.href = "http://192.168.1.103:5173/app/login";
+                     navigate("/app/login", { replace: true });
                   }}
             style={{
               width: 42,
@@ -366,64 +577,116 @@ useEffect(() => {
         >
           <BotaoMenu
                 icone="📥"
-                titulo="Entrada rápida"
-                subtitulo="Dinheiro recebido"
+                titulo="Rcebimentos"
+                subtitulo="Receita e Entradas"
                 onClick={() => ir("entrada")}
               />
 
              <BotaoMenu
                 icone="📤"
-                titulo="Saída rápida"
-                subtitulo="Despesa Paga"
-                onClick={() => ir("saida")}
+                titulo="Pagamentos"
+                subtitulo=" Compras e consumo"
+                onClick={() => ir("saida")} 
               />
+
+           {/*   <BotaoMenu
+                icone="💰"
+                titulo="Receber a Prazo"
+              //  subtitulo="Receber "
+            onClick={() => ir("receber")} 
+             />
 
              <BotaoMenu
                 icone="📆"
-                titulo="Contas a Pagar"
-                subtitulo="Criar Vencimentos "
+                titulo="Despesas a Prazo"
+             //   subtitulo="Despesas a Prazo "
             onClick={() => ir("pagar")}
-            />
-           
-           
-             <BotaoMenu
-                icone="💰"
-                titulo="Contas a Receber"
-                subtitulo="Criar Recebimentos "
-            onClick={() => ir("receber")} 
-             />
+            />*/}
+
+
+          
+             
             
 
              <BotaoMenu
                 icone="💳"
                 titulo="Compras no Cartão"
-                subtitulo="Criar compras no Cartão "
+                //subtitulo="Criar compras no Cartão "
             onClick={() => ir("compra_cartao")}
             />
              
               <BotaoMenu
                 icone="🔄"
                 titulo="Transferências Bancárias"
-                subtitulo="Transferencia entre conta corrente."
+                //subtitulo="Transferencia entre conta corrente."
                 onClick={() => navigate("/app/transferencia")}
             />
- 
-              <BotaoMenu
+             
+               <BotaoMenu
                 icone="📊"
-                titulo="Lançamentos"
-                subtitulo=" Contulta  de  Contas , lançamentos e pagamentos ...."
-                onClick={() => navigate("/app/lancamentos")}
+                titulo="Lançamentos "
+                //subtitulo=" Contulta  de  Contas , lançamentos e pagamentos ...."
+                onClick={() => navigate("/app/lancamentos")} 
             />
+
+
+              <BotaoMenu
+                icone="💰"
+                titulo="Dinheiro"
+               subtitulo="Contas e Cartões "
+                 onClick={() => navigate("/app/contas-cartoes")}
+            /> 
+            <BotaoMenu
+                  icone={
+                    <span
+                      style={{
+                        display: "inline-block",
+                        animation: qtdVencidos > 0 ? "sinoMexendo 0.8s infinite" : "none",
+                      }}
+                    >
+                      🔔
+                    </span>
+                  }
+                  titulo={qtdVencidos > 0 ? `${qtdVencidos} pendência(s)` : "Sem pendências"}
+                  subtitulo={qtdVencidos > 0 ? "Toque para baixar vencidos" : "Tudo em dia"}
+                  onClick={() => navigate("/app/titulosvencidos")}
+                />
+                 <BotaoMenu
+                  icone={
+                    <span
+                      style={{
+                        display: "inline-block",
+                        animation: alertaContabil ? "sinoMexendo 0.8s infinite" : "none",
+                      }}
+                    >
+                      🔔
+                    </span>
+                  }
+                  titulo={alertaContabil ? "Processar contábil" : "Contábil em dia"}
+                  subtitulo={
+                    alertaContabil
+                      ? "Existem lançamentos não processados"
+                      : "Nenhum processamento pendente"
+                  }
+                  onClick={() => navigate("/app/processar-diario")}
+                />
+
+                 <BotaoMenu
+                icone="📊"
+                titulo="Relatórios"
+               // subtitulo="Fluxo, DRE e razão"
+                onClick={() => navigate("/app/relatorios")}
+              />
 
             <BotaoMenu
                 icone="⚙️"
                 titulo="Configurações"
-                subtitulo="Contas , Cartões Fornecedor, Categoria ...."
+                //subtitulo="Contas , Cartões Fornecedor, Categoria ...."
                 onClick={() => navigate("/app/configuracoes")}
             />
-          
-          
-            
+  
+
+
         </div>
       </div>
 
@@ -440,7 +703,10 @@ useEffect(() => {
     <div id="reader" style={{ background: "#fff", borderRadius: 16 }} />
 
     <button
-      onClick={() => setAbrirQR(false)}
+        onClick={() => {
+  setAbrirQR(false);
+  setTimeout(() => setTipoLeitor(null), 300);
+}}
       style={{
         position: "absolute",
         top: 20,
